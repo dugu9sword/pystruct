@@ -1,7 +1,7 @@
 import numpy as np
 from scipy import sparse
 
-from .common import _validate_params
+from .common import _validate_params, compute_energy
 from ..utils.graph_functions import is_forest
 
 
@@ -68,8 +68,8 @@ def tree_max_product(unary_potentials, pairwise_potentials, edges):
         Parameters
         ----------
         unary_potentials:    (n_vertices, n_states)
-        pairwise_potentials: (n_vertices, n_states, n_states)
-        edges:               (n_vertices, 2)
+        pairwise_potentials: (n_edges, n_states, n_states)
+        edges:               (n_edges, 2)
         
         @comment: Yi
         forward  -> outside
@@ -191,13 +191,13 @@ def tree_max_product(unary_potentials, pairwise_potentials, edges):
 
 
 def iterative_max_product(unary_potentials, pairwise_potentials, edges,
-                          max_iter=10, damping=.5, tol=1e-5):
+                          max_iter=10, damping=.5, tol=1e-5, track_best=False):
     """
         Parameters
         ----------
         unary_potentials:    (n_vertices, n_states)
-        pairwise_potentials: (n_vertices, n_states, n_states)
-        edges:               (n_vertices, 2)
+        pairwise_potentials: (n_edges, n_states, n_states)
+        edges:               (n_edges, 2)
         
         @comment: Yi
         For an edge connecting two nodes 0 and 1, messages[e, 0] denotes the last message 
@@ -216,6 +216,9 @@ def iterative_max_product(unary_potentials, pairwise_potentials, edges,
         - the incoming messages for 1 (all_incoming[1])
         
     """
+    if track_best:
+        best_configuration = None
+        best_energy = -10000
     n_edges = len(edges)
     n_vertices, n_states = unary_potentials.shape
     messages = np.zeros((n_edges, 2, n_states))
@@ -248,6 +251,19 @@ def iterative_max_product(unary_potentials, pairwise_potentials, edges,
             update = new_message - old_message
             all_incoming[edge[0]] += update
             diff += np.abs(update).sum()
+        if track_best:
+            configuration = np.argmax(all_incoming + unary_potentials, axis=1)
+            energy = compute_energy(
+                unary_potentials=unary_potentials,  # yapf
+                pairwise_potentials=pairwise_potentials,
+                edges=edges,
+                labels=configuration)
+            if energy > best_energy:
+                best_energy = energy
+                best_configuration = configuration
         if diff < tol:
             break
-    return np.argmax(all_incoming + unary_potentials, axis=1)
+    if track_best:
+        return best_configuration
+    else:
+        return np.argmax(all_incoming + unary_potentials, axis=1)
