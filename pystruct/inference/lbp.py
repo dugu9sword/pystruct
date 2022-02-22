@@ -126,9 +126,25 @@ def compute_energy_plus(
         ternary_edges=None,
         labels=None):
     energy = genops.sum(unary_potentials[genops.arange(len(labels)), labels])
-    for edge, pw in zip(binary_edges, binary_potentials):
-        energy += pw[labels[edge[0]], labels[edge[1]]]
+
+    # for edge, pw in zip(binary_edges, binary_potentials):
+    #     energy += pw[labels[edge[0]], labels[edge[1]]]
+    n_state = binary_potentials.shape[-1]
+    score = einops.rearrange(binary_potentials, "B S1 S2->B (S1 S2)")
+    score_index = labels[binary_edges]
+    score_index = score_index[:, 0] * n_state + score_index[:, 1]
+    score_index = einops.rearrange(score_index, "B->B ()")
+    bin_score = genops.gather(score, axis=1, index=score_index)
+    energy += genops.sum(bin_score)
+
     if ternary_potentials is not None:
-        for edge, tw in zip(ternary_edges, ternary_potentials):
-            energy += tw[labels[edge[0]], labels[edge[1]], labels[edge[2]]]
+        # for edge, tw in zip(ternary_edges, ternary_potentials):
+        #     energy += tw[labels[edge[0]], labels[edge[1]], labels[edge[2]]]
+        score = einops.rearrange(ternary_potentials, "B S1 S2 S3->B (S1 S2 S3)")
+        score_index = labels[ternary_edges]
+        score_index = score_index[:, 0] * (n_state**2) + score_index[:, 1] * n_state + score_index[:, 2]
+        score_index = einops.rearrange(score_index, "B->B ()")
+        ter_score = genops.gather(score, axis=1, index=score_index)
+        energy += genops.sum(ter_score)
+
     return energy
