@@ -1,6 +1,8 @@
 import numpy as np
 import einops
 from scipy import sparse
+import genops
+import torch
 
 
 def lbp_plus(
@@ -13,6 +15,7 @@ def lbp_plus(
         damping=.5,
         tol=1e-5,
         track_best=False):
+    genops.set_backend_as(unary_potentials)
     has_ternary = ternary_edges is not None
     if track_best:
         best_configuration = None
@@ -24,23 +27,23 @@ def lbp_plus(
     if has_ternary:
         n_ter_edges = ternary_edges.shape[0]
 
-    directed_binaries = np.stack([
+    directed_binaries = genops.stack([
         einops.rearrange(binary_potentials, "B E1 E2-> B E2 E1"),  # make yapf happy
         binary_potentials
     ])
 
     if has_ternary:
-        directed_ternaries = np.stack([
+        directed_ternaries = genops.stack([
             einops.rearrange(ternary_potentials, "B E0 E1 E2-> B E1 E2 E0"),  # make yapf happy
             einops.rearrange(ternary_potentials, "B E0 E1 E2-> B E0 E2 E1"),
             ternary_potentials
         ])
 
     # variables to update
-    all_incoming_msg = np.zeros((n_vertices, n_states))
-    last_bin_msg = np.zeros((n_bin_edges, 2, n_states))
+    all_incoming_msg = genops.zeros((n_vertices, n_states))
+    last_bin_msg = genops.zeros((n_bin_edges, 2, n_states))
     if has_ternary:
-        last_ter_msg = np.zeros((n_ter_edges, 3, n_states))
+        last_ter_msg = genops.zeros((n_ter_edges, 3, n_states))
 
     for _ in range(max_iter):
         diff = 0
@@ -59,12 +62,14 @@ def lbp_plus(
             delta_msg = new_msg - last_bin_msg[:, mt]
             last_bin_msg[:, mt] = new_msg
 
-            delta_incoming = sparse.coo_matrix(
-                (np.ones(n_bin_edges), (binary_edges[:, mt], np.arange(0, n_bin_edges))),  # (data, (row, col))
-                shape=(n_vertices, n_bin_edges)).dot(delta_msg)
+            delta_incoming = genops.sparse_coo_tensor(
+                indices=genops.stack([binary_edges[:, mt], genops.arange(0, n_bin_edges)]),
+                values=genops.ones([n_bin_edges]),
+                shape=(n_vertices, n_bin_edges)
+            ) @ delta_msg
             all_incoming_msg += delta_incoming
 
-            diff += np.abs(delta_msg).sum()
+            diff += genops.abs(delta_msg).sum()
 
         if has_ternary:
             for ms1, ms2, mt in ((1, 2, 0), (0, 2, 1), (0, 1, 2)):
@@ -85,13 +90,15 @@ def lbp_plus(
                 delta_msg = new_msg - last_ter_msg[:, mt]
                 last_ter_msg[:, mt] = new_msg
 
-                delta_incoming = sparse.coo_matrix(
-                    (np.ones(n_ter_edges), (ternary_edges[:, mt], np.arange(0, n_ter_edges))),  # (data, (row, col))
-                    shape=(n_vertices, n_ter_edges)).dot(delta_msg)
+                delta_incoming = genops.sparse_coo_tensor(
+                    indices=genops.stack([ternary_edges[:, mt], genops.arange(0, n_ter_edges)]),
+                    values=genops.ones([n_ter_edges]),
+                    shape=(n_vertices, n_ter_edges)
+                ) @ delta_msg
                 all_incoming_msg += delta_incoming
-                diff += np.abs(delta_msg).sum()
+                diff += genops.abs(delta_msg).sum()
         if track_best:
-            configuration = np.argmax(all_incoming_msg + unary_potentials, axis=1)
+            configuration = genops.argmax(all_incoming_msg + unary_potentials, axis=1)
             energy = compute_energy_plus(
                 unary_potentials=unary_potentials,  # yapf
                 binary_potentials=binary_potentials,
@@ -108,7 +115,7 @@ def lbp_plus(
     if track_best:
         return best_configuration
     else:
-        return np.argmax(all_incoming_msg + unary_potentials, axis=1)
+        return genops.argmax(all_incoming_msg + unary_potentials, axis=1)
 
 
 def compute_energy_plus(
@@ -118,7 +125,7 @@ def compute_energy_plus(
         ternary_potentials=None,
         ternary_edges=None,
         labels=None):
-    energy = np.sum(unary_potentials[np.arange(len(labels)), labels])
+    energy = genops.sum(unary_potentials[genops.arange(len(labels)), labels])
     for edge, pw in zip(binary_edges, binary_potentials):
         energy += pw[labels[edge[0]], labels[edge[1]]]
     if ternary_potentials is not None:
