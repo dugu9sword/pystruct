@@ -1,8 +1,5 @@
-import numpy as np
 import einops
-from scipy import sparse
 import genops
-import torch
 
 
 def lbp_plus(

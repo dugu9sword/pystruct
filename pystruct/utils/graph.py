@@ -25,3 +25,14 @@ def edge_list_to_features(edge_list):
     edge_features[:len(edge_list[0]), 0] = 1
     edge_features[len(edge_list[0]):, 1] = 1
     return edge_features
+
+
+def generate_binary_edges(length, window):
+    """
+        [(0, 1), (1, 2), (2, 3), (3, 4), (4, 5), (0, 2), (1, 3), (2, 4), (3, 5)]
+    """
+    edges = []
+    for w in range(1, window + 1):
+        for i in range(length - w):
+            edges.append((i, i + w))
+    return edges
