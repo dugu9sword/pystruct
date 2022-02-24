@@ -162,6 +162,37 @@ class GraphCRF(CRF):
         Feature representation joint_feature, such that the energy of the configuration
         (x, y) and a weight vector w is given by np.dot(w, joint_feature(x, y)).
 
+        @comment: Yi
+        x is a tuple:
+            - node's feature:   ndarray(n_nodes, n_features)
+                by convention, we hope the feature space to be discrete, which means
+                does a feature appears or how many times does it appear.
+                actually we can allow any dense feature without loss of generality.
+            - nodes' structure: ndarray(n_edges, 2)
+        y is:
+            - node's marginal:  ndarray(n_nodes, n_states)
+                it can be discrete or continous (but sum to 1), so we call it 
+                marginal since it is a proability in general.
+        
+        Note that (x, y)'s shape is different case-by-case since they have different
+        number of nodes and edges. We try to convert it into a fix-sized dense vector 
+        so that it can be directly multiplied with the weight vector.
+
+        Here is an example: Denote the feature dim as F, the state space dim as S. Considering
+        a instance where we have N nodes and E edges. Supposing the marginal matrix is M{NS} 
+        (which means M's dim is NxS), the feature matrix is F{NF}.
+
+        the unary potential should be:
+            (\sum_n M{SN} @ F{NF}){SF} ele-wise-dot W{SF}
+        
+        WHY? considering a single-node discrete case, the first vector denotes the 1-st 
+        state occurs, the second vector denotes the 0-th feature occures. A outer product 
+        can deduce the co-occurence of states and features.
+
+            [0]             [0 0 0]
+            [1] @ [1 0 0] = [1 0 0]
+            [0]             [0 0 0]
+
         Parameters
         ----------
         x : tuple
@@ -190,19 +221,29 @@ class GraphCRF(CRF):
             # accumulate pairwise
             pw = pw.reshape(-1, self.n_states, self.n_states).sum(axis=0)
         else:
+            """
+                get accumulated pairwise feature count table (in |state|^2 space) 
+
+                unary_marginal:   n_nodes x n_state
+                    -> one-hot, the i-th node has the j-th state
+                unary_marginals[edges[:, 0]]:   n_edge x n_state
+                    -> one hot, the i-th edge.src has the j-th state
+                unary_marginals[edges[:, 1]]:   n_edge x n_state
+                    -> one hot, the i-th edge.tgt has the j-th state
+                pw:   n_state x n_state
+                    -> count of (i-th state -> j-th state) in edges
+            """
             y = y.reshape(n_nodes)
-            gx = np.ogrid[:n_nodes]
-
-            #make one hot encoding
             unary_marginals = np.zeros((n_nodes, self.n_states), dtype=np.int)
-            gx = np.ogrid[:n_nodes]
-            unary_marginals[gx, y] = 1
+            unary_marginals[np.ogrid[:n_nodes], y] = 1
 
-            ##accumulated pairwise
             pw = np.dot(unary_marginals[edges[:, 0]].T,
                         unary_marginals[edges[:, 1]])
 
-        unaries_acc = np.dot(unary_marginals.T, features)
+        """
+            get accumulated unary feature table (in |state| x |feature| space)
+        """
+        unaries_acc = np.dot(unary_marginals.T, features)   
         if self.directed:
             pw = pw.ravel()
         else:

@@ -217,8 +217,8 @@ class SubgradientSSVM(BaseSSVM):
                 self.timestamps_.append(time() - self.timestamps_[0])
                 self.objective_curve_.append(self._objective(X, Y))
 
-                if self.verbose > 2:
-                    print(self.w)
+                # if self.verbose > 2:
+                    # print(self.w)
 
                 self._compute_training_loss(X, Y, iteration)
                 if self.logger is not None:

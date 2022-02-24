@@ -67,6 +67,13 @@ class CRF(StructuredModel):
         armin_y_hat np.dot(w, joint_feature(x, y_hat)) + loss(y, y_hat)
         using self.inference_method.
 
+        @comment: Yi
+
+        For the $i$-th node and the $s$-th state, add $1$ to the unary potential where $y_{is} \ne \mathrm{gold}$. 
+        Thus score of the MAP will be added $k$, the number of nodes misclassified. In other words, the loss
+        is Hamming loss, where we only consider node-level accuracy.
+        
+        NOTE: $1$s are added to unary potentials instead of **unary param** in the weight.
 
         Parameters
         ----------
