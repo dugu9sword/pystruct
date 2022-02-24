@@ -43,3 +43,7 @@ See the comments in `GraphCRF.joint_feature` of `pystruct/models/graph_crf.py` f
 
 See the comments in `CRF.loss_augmented_inference` of `pystruct/models/crf.py` for details
 
+### Subgradient SSVM
+
+#### Structured Perceptron
+`pystruct/models/structured_perceptron.py` is the margin-free version of `pystruct/models/subgrdient_ssvm.py`. More specifically, a difference is whether `loss_augmented_inference` is used. 
