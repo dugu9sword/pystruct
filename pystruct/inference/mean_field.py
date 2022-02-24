@@ -13,6 +13,7 @@ def naive_mean_field(
         damping=.2,
         tol=1e-5,
         track_best=False):
+    genops.set_backend_as(unary_potentials)
     if track_best:
         best_configuration = None
         best_energy = -10000
